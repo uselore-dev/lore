@@ -23,7 +23,7 @@ await build({
   define: {
     __LORE_VERSION__: JSON.stringify(version ?? "0.0.0"),
     __LORE_API_URL__: JSON.stringify(
-      process.env.LORE_API_URL ?? "https://lore-license-worker.mazewinther.workers.dev",
+      process.env.LORE_API_URL ?? "https://lore-worker.mazewinther.workers.dev",
     ),
   },
 });

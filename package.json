@@ -11,7 +11,7 @@
     "check": "turbo run check",
     "lore": "npm run lore -w trylore",
     "cli:publish": "turbo run build --filter=trylore && npm publish --workspace=apps/cli",
-    "kv:put": "npm run kv:put -w lore-license-worker"
+    "kv:put": "npm run kv:put -w lore-worker"
   },
   "devDependencies": {
     "turbo": "^2.5.4"

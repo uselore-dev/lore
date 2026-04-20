@@ -9,7 +9,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const LORE_API_URL = "https://lore-license-worker.mazewinther.workers.dev";
+const LORE_API_URL = "https://lore-worker.mazewinther.workers.dev";
 const mode = process.argv[2] ?? "plain";
 
 function readKey() {

@@ -4,7 +4,7 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "lore-license-worker",
+	"name": "lore-worker",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-04-02",
 	"observability": {
