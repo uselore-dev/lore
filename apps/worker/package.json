@@ -7,7 +7,7 @@
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
     "start": "wrangler dev",
-    "test": "vitest",
+    "test": "vitest run",
     "cf-typegen": "wrangler types",
     "kv:put": "wrangler kv key put --namespace-id=b205174e67b646c5beaee8e717cec92a context --path=./context.md"
   },

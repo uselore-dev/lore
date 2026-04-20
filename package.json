@@ -8,7 +8,8 @@
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "build": "turbo run build",
-    "check": "turbo run check",
+    "check": "turbo run check test",
+    "test": "turbo run test",
     "lore": "npm run lore -w trylore",
     "cli:publish": "turbo run build --filter=trylore && npm publish --workspace=apps/cli",
     "kv:put": "npm run kv:put -w lore-worker"
