@@ -1,0 +1,6 @@
+node_modules/
+**/dist/
+.turbo/
+
+# CLI resources are copied from packages/hook at build time
+apps/cli/resources

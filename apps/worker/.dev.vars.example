@@ -1,0 +1,3 @@
+POLAR_ACCESS_TOKEN=your-polar-access-token
+POLAR_ORGANIZATION_ID=your-sandbox-org-id
+POLAR_API_BASE_URL=https://sandbox-api.polar.sh

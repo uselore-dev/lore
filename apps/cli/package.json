@@ -1,0 +1,24 @@
+{
+  "name": "trylore",
+  "version": "0.1.1",
+  "type": "module",
+  "bin": {
+    "lore": "dist/bin/lore.js"
+  },
+  "files": [
+    "dist",
+    "resources"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "lore": "node dist/bin/lore.js",
+    "check": "tsc --noEmit",
+    "publish": "npm publish"
+  },
+  "devDependencies": {
+    "@lore/hook": "*",
+    "@types/node": "^22.14.0",
+    "esbuild": "^0.28.0",
+    "typescript": "~5.8.3"
+  }
+}

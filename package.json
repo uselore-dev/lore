@@ -1,0 +1,19 @@
+{
+  "name": "lore",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "npm@10.9.3",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "build": "turbo run build",
+    "check": "turbo run check",
+    "lore": "npm run lore -w trylore",
+    "cli:publish": "turbo run build --filter=trylore && npm publish --workspace=apps/cli",
+    "kv:put": "npm run kv:put -w lore-license-worker"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.4"
+  }
+}

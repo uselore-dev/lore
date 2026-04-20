@@ -1,0 +1,10 @@
+{
+  "name": "@lore/hook",
+  "version": "0.1.0",
+  "private": true,
+  "files": [
+    "inject-session-context.mjs",
+    "lore-session.mjs",
+    "registry.ts"
+  ]
+}
