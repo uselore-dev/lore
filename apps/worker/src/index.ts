@@ -12,6 +12,16 @@ type ValidatedLicenseKey = {
 
 type PolarResult<T> = { ok: true; value: T } | { ok: false; status: number; message: string };
 
+type LicenseFailureReason = 'unknown' | 'inactive' | 'upstream';
+
+type LicenseValidation = { ok: true } | { ok: false; reason: LicenseFailureReason; message: string };
+
+const STATUS_BY_LICENSE_FAILURE: Record<LicenseFailureReason, number> = {
+	unknown: 401,
+	inactive: 403,
+	upstream: 502,
+};
+
 const DEFAULT_POLAR_API_BASE_URL = 'https://api.polar.sh';
 
 const CORS_HEADERS = {
@@ -62,7 +72,7 @@ async function handleValidate({ request, env }: { request: Request; env: WorkerE
 
 	const result = await validateLicenseKey(key, env);
 	if (result.ok === false) {
-		return jsonResponse({ message: result.message }, result.status === 404 ? 401 : result.status);
+		return jsonResponse({ message: result.message }, STATUS_BY_LICENSE_FAILURE[result.reason]);
 	}
 
 	return jsonResponse({ ok: true });
@@ -76,7 +86,10 @@ async function handleContext({ request, env }: { request: Request; env: WorkerEn
 	if (!key) return jsonResponse({ message: 'A license key is required.' }, 401);
 
 	const result = await validateLicenseKey(key, env);
-	if (!result.ok) return jsonResponse({ message: 'Invalid or inactive license key.' }, 401);
+	if (result.ok === false) {
+		if (result.reason === 'upstream') return jsonResponse({ message: result.message }, 502);
+		return jsonResponse({ message: 'Invalid or inactive license key.' }, 401);
+	}
 
 	const content = await env.CONTEXT.get('context');
 	if (!content) return jsonResponse({ message: 'Context not configured.' }, 404);
@@ -87,10 +100,7 @@ async function handleContext({ request, env }: { request: Request; env: WorkerEn
 	});
 }
 
-async function validateLicenseKey(
-	key: string,
-	env: WorkerEnv,
-): Promise<{ ok: true } | { ok: false; status: number; message: string }> {
+async function validateLicenseKey(key: string, env: WorkerEnv): Promise<LicenseValidation> {
 	const result = await polarRequest<ValidatedLicenseKey>({
 		env,
 		path: '/v1/license-keys/validate',
@@ -98,9 +108,13 @@ async function validateLicenseKey(
 		body: { key, organization_id: env.POLAR_ORGANIZATION_ID },
 	});
 
-	if (!result.ok) return result;
+	if (result.ok === false) {
+		if (result.status === 404) return { ok: false, reason: 'unknown', message: 'License key not found.' };
+		return { ok: false, reason: 'upstream', message: "Couldn't verify license key with Polar." };
+	}
+
 	if (result.value.status !== 'granted') {
-		return { ok: false, status: 403, message: 'License key is not active.' };
+		return { ok: false, reason: 'inactive', message: 'License key is not active.' };
 	}
 
 	return { ok: true };
