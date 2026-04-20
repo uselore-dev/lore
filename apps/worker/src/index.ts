@@ -62,7 +62,7 @@ async function handleValidate({ request, env }: { request: Request; env: WorkerE
 
 	const result = await validateLicenseKey(key, env);
 	if (result.ok === false) {
-		return jsonResponse({ message: result.message }, result.status === 404 ? 401 : 502);
+		return jsonResponse({ message: result.message }, result.status === 404 ? 401 : result.status);
 	}
 
 	return jsonResponse({ ok: true });
