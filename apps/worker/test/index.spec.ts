@@ -102,6 +102,19 @@ describe('Lore license worker', () => {
 			expect(response.status).toBe(403);
 		});
 
+		it('returns 502 when Polar is unreachable', async () => {
+			stubFetch(new Response(null, { status: 500 }));
+			const request = new IncomingRequest('http://example.com/validate', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ key: 'any-key' }),
+			});
+			const ctx = createExecutionContext();
+			const response = await worker.fetch(request, makeEnv(), ctx);
+			await waitOnExecutionContext(ctx);
+			expect(response.status).toBe(502);
+		});
+
 		it('returns ok for a valid granted key', async () => {
 			const fetchMock = stubFetch(Response.json({ id: 'key-id', status: 'granted' }));
 			const request = new IncomingRequest('http://example.com/validate', {
@@ -136,6 +149,17 @@ describe('Lore license worker', () => {
 			const response = await worker.fetch(request, makeEnv(), ctx);
 			await waitOnExecutionContext(ctx);
 			expect(response.status).toBe(401);
+		});
+
+		it('returns 502 when Polar is unreachable', async () => {
+			stubFetch(new Response(null, { status: 500 }));
+			const request = new IncomingRequest('http://example.com/context', {
+				headers: { authorization: 'Bearer any-key' },
+			});
+			const ctx = createExecutionContext();
+			const response = await worker.fetch(request, makeEnv('# rules content'), ctx);
+			await waitOnExecutionContext(ctx);
+			expect(response.status).toBe(502);
 		});
 
 		it('returns 404 when context is not configured in KV', async () => {
