@@ -42,6 +42,9 @@ export default {
 			return jsonResponse({ ok: true, name: 'lore-worker', endpoints: ['POST /validate', 'GET /context'] });
 		}
 
+		const configError = getConfigError(env);
+		if (configError) return jsonResponse({ message: configError }, 500);
+
 		if (request.method === 'POST' && url.pathname === '/validate') {
 			return handleValidate({ request, env });
 		}
@@ -55,9 +58,6 @@ export default {
 } satisfies ExportedHandler<WorkerEnv>;
 
 async function handleValidate({ request, env }: { request: Request; env: WorkerEnv }): Promise<Response> {
-	const configError = getConfigError(env);
-	if (configError) return jsonResponse({ message: configError }, 500);
-
 	let body: unknown;
 	try {
 		body = await request.json();
@@ -79,9 +79,6 @@ async function handleValidate({ request, env }: { request: Request; env: WorkerE
 }
 
 async function handleContext({ request, env }: { request: Request; env: WorkerEnv }): Promise<Response> {
-	const configError = getConfigError(env);
-	if (configError) return jsonResponse({ message: configError }, 500);
-
 	const key = readBearerToken(request);
 	if (!key) return jsonResponse({ message: 'A license key is required.' }, 401);
 
