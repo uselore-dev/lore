@@ -38,10 +38,9 @@
 	"kv_namespaces": [
 		{
 			"binding": "CONTEXT",
-			"id": "b205174e67b646c5beaee8e717cec92a",
-			"remote": true
+			"id": "b205174e67b646c5beaee8e717cec92a"
 		}
-	],
+	]
 	/**
 	 * Static Assets
 	 * https://developers.cloudflare.com/workers/static-assets/binding/

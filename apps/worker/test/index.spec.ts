@@ -4,11 +4,23 @@ import worker from '../src/index';
 
 const IncomingRequest = Request<unknown, IncomingRequestCfProperties>;
 
-const testEnv = {
-	POLAR_ACCESS_TOKEN: 'polar-token',
-	POLAR_ORGANIZATION_ID: 'org-id',
-	POLAR_API_BASE_URL: 'https://api.polar.sh',
-};
+function makeEnv(contextContent: string | null = null) {
+	return {
+		POLAR_ACCESS_TOKEN: 'polar-token',
+		POLAR_ORGANIZATION_ID: 'org-id',
+		POLAR_API_BASE_URL: 'https://api.polar.sh',
+		CONTEXT: { get: vi.fn().mockResolvedValue(contextContent) } as unknown as KVNamespace,
+	};
+}
+
+function stubFetch(...responses: Response[]) {
+	const fetchMock = vi.fn<typeof fetch>();
+	vi.stubGlobal('fetch', fetchMock);
+	for (const response of responses) {
+		fetchMock.mockResolvedValueOnce(response);
+	}
+	return fetchMock;
+}
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -19,91 +31,135 @@ describe('Lore license worker', () => {
 	it('returns a health response from GET /', async () => {
 		const request = new IncomingRequest('http://example.com');
 		const ctx = createExecutionContext();
-		const response = await worker.fetch(request, testEnv, ctx);
+		const response = await worker.fetch(request, makeEnv(), ctx);
 		await waitOnExecutionContext(ctx);
 		expect(response.status).toBe(200);
 		expect(await response.json()).toEqual({
 			ok: true,
-			name: 'lore-license-worker',
-			endpoints: ['POST /activate'],
+			name: 'lore-worker',
+			endpoints: ['POST /validate', 'GET /context'],
 		});
 	});
 
-	it('rejects an activation request without a device ID', async () => {
-		const request = new IncomingRequest('http://example.com/activate', {
-			method: 'POST',
-			headers: {
-				'content-type': 'application/json',
-			},
-			body: JSON.stringify({
-				key: 'license-key',
-			}),
-		});
+	it('returns 404 for an unknown route', async () => {
+		const request = new IncomingRequest('http://example.com/unknown');
 		const ctx = createExecutionContext();
-		const response = await worker.fetch(request, testEnv, ctx);
+		const response = await worker.fetch(request, makeEnv(), ctx);
 		await waitOnExecutionContext(ctx);
-		expect(response.status).toBe(400);
-		expect(await response.json()).toEqual({
-			message: 'A deviceId is required.',
+		expect(response.status).toBe(404);
+	});
+
+	describe('POST /validate', () => {
+		it('returns 400 when the key is missing', async () => {
+			const request = new IncomingRequest('http://example.com/validate', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({}),
+			});
+			const ctx = createExecutionContext();
+			const response = await worker.fetch(request, makeEnv(), ctx);
+			await waitOnExecutionContext(ctx);
+			expect(response.status).toBe(400);
+			expect(await response.json()).toEqual({ message: 'key is required.' });
+		});
+
+		it('returns 400 for invalid JSON', async () => {
+			const request = new IncomingRequest('http://example.com/validate', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: 'not json',
+			});
+			const ctx = createExecutionContext();
+			const response = await worker.fetch(request, makeEnv(), ctx);
+			await waitOnExecutionContext(ctx);
+			expect(response.status).toBe(400);
+			expect(await response.json()).toEqual({ message: 'Request body must be valid JSON.' });
+		});
+
+		it('returns 401 when Polar does not recognise the key', async () => {
+			stubFetch(new Response(null, { status: 404 }));
+			const request = new IncomingRequest('http://example.com/validate', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ key: 'bad-key' }),
+			});
+			const ctx = createExecutionContext();
+			const response = await worker.fetch(request, makeEnv(), ctx);
+			await waitOnExecutionContext(ctx);
+			expect(response.status).toBe(401);
+		});
+
+		it('returns 403 when the license key is not granted', async () => {
+			stubFetch(Response.json({ id: 'key-id', status: 'revoked' }));
+			const request = new IncomingRequest('http://example.com/validate', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ key: 'revoked-key' }),
+			});
+			const ctx = createExecutionContext();
+			const response = await worker.fetch(request, makeEnv(), ctx);
+			await waitOnExecutionContext(ctx);
+			expect(response.status).toBe(403);
+		});
+
+		it('returns ok for a valid granted key', async () => {
+			const fetchMock = stubFetch(Response.json({ id: 'key-id', status: 'granted' }));
+			const request = new IncomingRequest('http://example.com/validate', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ key: 'valid-key' }),
+			});
+			const ctx = createExecutionContext();
+			const response = await worker.fetch(request, makeEnv(), ctx);
+			await waitOnExecutionContext(ctx);
+			expect(response.status).toBe(200);
+			expect(await response.json()).toEqual({ ok: true });
+			expect(String(fetchMock.mock.calls[0]?.[1]?.body)).toContain('"key":"valid-key"');
 		});
 	});
 
-	it('transfers the license to the current device', async () => {
-		const fetchMock = vi.fn<typeof fetch>();
-		vi.stubGlobal('fetch', fetchMock);
-		fetchMock
-			.mockResolvedValueOnce(
-				Response.json({
-					id: 'license-key-id',
-					status: 'granted',
-				}),
-			)
-			.mockResolvedValueOnce(
-				Response.json({
-					activations: [{ id: 'old-activation-1' }, { id: 'old-activation-2' }],
-				}),
-			)
-			.mockResolvedValueOnce(new Response(null, { status: 204 }))
-			.mockResolvedValueOnce(new Response(null, { status: 204 }))
-			.mockResolvedValueOnce(
-				Response.json({
-					id: 'new-activation-id',
-				}),
-			);
-
-		const request = new IncomingRequest('http://example.com/activate', {
-			method: 'POST',
-			headers: {
-				'content-type': 'application/json',
-			},
-			body: JSON.stringify({
-				key: 'license-key',
-				deviceId: 'machine-123',
-			}),
+	describe('GET /context', () => {
+		it('returns 401 when no authorization header is provided', async () => {
+			const request = new IncomingRequest('http://example.com/context');
+			const ctx = createExecutionContext();
+			const response = await worker.fetch(request, makeEnv(), ctx);
+			await waitOnExecutionContext(ctx);
+			expect(response.status).toBe(401);
 		});
-		const ctx = createExecutionContext();
-		const response = await worker.fetch(request, testEnv, ctx);
-		await waitOnExecutionContext(ctx);
 
-		expect(response.status).toBe(200);
-		expect(await response.json()).toEqual({
-			activationId: 'new-activation-id',
+		it('returns 401 when the license key is invalid', async () => {
+			stubFetch(new Response(null, { status: 404 }));
+			const request = new IncomingRequest('http://example.com/context', {
+				headers: { authorization: 'Bearer bad-key' },
+			});
+			const ctx = createExecutionContext();
+			const response = await worker.fetch(request, makeEnv(), ctx);
+			await waitOnExecutionContext(ctx);
+			expect(response.status).toBe(401);
 		});
-		expect(fetchMock).toHaveBeenCalledTimes(5);
-		expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-			'https://api.polar.sh/v1/license-keys/validate',
-			'https://api.polar.sh/v1/license-keys/license-key-id',
-			'https://api.polar.sh/v1/license-keys/deactivate',
-			'https://api.polar.sh/v1/license-keys/deactivate',
-			'https://api.polar.sh/v1/license-keys/activate',
-		]);
-		expect(JSON.parse(String(fetchMock.mock.calls[4]?.[1]?.body))).toEqual({
-			key: 'license-key',
-			organization_id: 'org-id',
-			label: 'machine-123',
-			meta: {
-				app: 'lore',
-			},
+
+		it('returns 404 when context is not configured in KV', async () => {
+			stubFetch(Response.json({ id: 'key-id', status: 'granted' }));
+			const request = new IncomingRequest('http://example.com/context', {
+				headers: { authorization: 'Bearer valid-key' },
+			});
+			const ctx = createExecutionContext();
+			const response = await worker.fetch(request, makeEnv(null), ctx);
+			await waitOnExecutionContext(ctx);
+			expect(response.status).toBe(404);
+		});
+
+		it('returns the context as plain text for a valid key', async () => {
+			stubFetch(Response.json({ id: 'key-id', status: 'granted' }));
+			const request = new IncomingRequest('http://example.com/context', {
+				headers: { authorization: 'Bearer valid-key' },
+			});
+			const ctx = createExecutionContext();
+			const response = await worker.fetch(request, makeEnv('# rules content'), ctx);
+			await waitOnExecutionContext(ctx);
+			expect(response.status).toBe(200);
+			expect(response.headers.get('content-type')).toBe('text/plain; charset=utf-8');
+			expect(await response.text()).toBe('# rules content');
 		});
 	});
 });
