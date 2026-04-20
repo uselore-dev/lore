@@ -2,6 +2,9 @@
   "name": "@lore/hook",
   "version": "0.1.0",
   "private": true,
+  "scripts": {
+    "check": "node --check inject-session-context.mjs && node --check lore-session.mjs"
+  },
   "files": [
     "inject-session-context.mjs",
     "lore-session.mjs",
